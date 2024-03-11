@@ -58,7 +58,7 @@ async fn main() {
     let mut leaf_hashes: Vec<_> = shares.iter().map(|share| share.as_ref()).collect();
 
     // verify first row proof
-    let first_row_leaves: Vec<&[u8]> = leaf_hashes.drain(..24).collect();
+    let first_row_leaves: Vec<&[u8]> = leaf_hashes.drain(..((square_size/2) - (blob_index%(square_size/2)))).collect();
     let res = proofs[0].verify_range(&row_roots[first_row_index], &first_row_leaves, my_namespace.into_inner());
     if res.is_err() {
         panic!("Failed to verify first row");
@@ -66,7 +66,7 @@ async fn main() {
 
     // verify middle row proofs
     for i in 1..(proofs.len()-1) {
-        let next_row_leaves: Vec<&[u8]> = leaf_hashes.drain(..32).collect();
+        let next_row_leaves: Vec<&[u8]> = leaf_hashes.drain(..(square_size/2)).collect();
         let res = proofs[i].verify_range(&row_roots[first_row_index+i], &next_row_leaves, my_namespace.into_inner());
         if res.is_err() {
             panic!("Failed to verify row {}",i);
@@ -74,7 +74,8 @@ async fn main() {
     }
 
     // verify last row proof
-    let res = proofs[proofs.len()-1].verify_range(&row_roots[proofs.len()-1], &leaf_hashes, my_namespace.into_inner());
+    let last_row_leaves = leaf_hashes;
+    let res = proofs[proofs.len()-1].verify_range(&row_roots[proofs.len()-1], &last_row_leaves, my_namespace.into_inner());
     if res.is_err() {
         panic!("Failed to verify last row");
     }
