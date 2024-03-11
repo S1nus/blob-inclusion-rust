@@ -51,9 +51,6 @@ async fn main() {
 
     let hasher = NamespacedSha2Hasher::with_ignore_max_ns(true);
 
-    /*let mut leaf_hashes: VecDeque<_> = blob.data.chunks(512)
-        .map(|chunk| hasher.hash_leaf_with_namespace(chunk, my_namespace.into_inner()))
-        .collect();*/
     let shares = blob.to_shares().expect("Failed to split blob to shares");
     let mut leaf_hashes: Vec<_> = shares.iter().map(|share| share.as_ref()).collect();
 
