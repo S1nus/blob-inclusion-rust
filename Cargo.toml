@@ -1,0 +1,12 @@
+[package]
+name = "inclusionprover"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+celestia-rpc = {path = "../lumina/rpc"}
+celestia-types = {path = "../lumina/types"}
+thiserror = "1.0.50"
+rand = "0.8.5"
+nmt-rs = "0.1.0"
