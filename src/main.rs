@@ -49,8 +49,6 @@ async fn main() {
         .map(|p| p.clone().into_inner())
         .collect();
 
-    let hasher = NamespacedSha2Hasher::with_ignore_max_ns(true);
-
     let shares = blob.to_shares().expect("Failed to split blob to shares");
     let mut leaf_hashes: Vec<_> = shares.iter().map(|share| share.as_ref()).collect();
 
