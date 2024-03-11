@@ -1,3 +1,4 @@
+use nmt_rs::simple_merkle::proof;
 use nmt_rs::simple_merkle::tree::MerkleHash;
 use nmt_rs::NamespaceMerkleHasher;
 use tokio::main;
@@ -29,9 +30,6 @@ async fn main() {
         .await
         .expect("Failed getting header");
     let row_roots = dah.dah.row_roots;
-    for rr in row_roots.iter() {
-        println!("a row root: {:?}", rr.hash());
-    }
     let blob = client.blob_get(height, my_namespace, commitment)
         .await
         .expect("Failed getting blob");
@@ -57,18 +55,29 @@ async fn main() {
         .map(|chunk| hasher.hash_leaf_with_namespace(chunk, my_namespace.into_inner()))
         .collect();*/
     let shares = blob.to_shares().expect("Failed to split blob to shares");
-    /*let leaf_hashes: VecDeque<_> = shares.iter()
-        .map(|share| hasher.hash_leaf_with_namespace(share.data.as_slice(), my_namespace.into_inner()))
-        .collect();*/
-    let leaf_hashes: Vec<_> = shares.iter().map(|share| share.as_ref()).collect();
+    let mut leaf_hashes: Vec<_> = shares.iter().map(|share| share.as_ref()).collect();
 
-    let res = proofs[0].verify_range(&row_roots[first_row_index], &leaf_hashes[0..24], my_namespace.into_inner());
+    // verify first row proof
+    let first_row_leaves: Vec<&[u8]> = leaf_hashes.drain(..24).collect();
+    let res = proofs[0].verify_range(&row_roots[first_row_index], &first_row_leaves, my_namespace.into_inner());
     if res.is_err() {
-        println!("Proof verification failed: {:?}", res.err());
-    } else {
-        println!("Proof verification succeeded");
+        panic!("Failed to verify first row");
     }
 
+    // verify middle row proofs
+    for i in 1..(proofs.len()-1) {
+        let next_row_leaves: Vec<&[u8]> = leaf_hashes.drain(..32).collect();
+        let res = proofs[i].verify_range(&row_roots[first_row_index+i], &next_row_leaves, my_namespace.into_inner());
+        if res.is_err() {
+            panic!("Failed to verify row {}",i);
+        }
+    }
+
+    // verify last row proof
+    let res = proofs[proofs.len()-1].verify_range(&row_roots[proofs.len()-1], &leaf_hashes, my_namespace.into_inner());
+    if res.is_err() {
+        panic!("Failed to verify last row");
+    }
 }
 
 fn create_valid_ethereum_blob() -> Vec<u8> {
