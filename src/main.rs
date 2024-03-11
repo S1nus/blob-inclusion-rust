@@ -29,6 +29,9 @@ async fn main() {
         .await
         .expect("Failed getting header");
     let row_roots = dah.dah.row_roots;
+    for rr in row_roots.iter() {
+        println!("a row root: {:?}", rr.hash());
+    }
     let blob = client.blob_get(height, my_namespace, commitment)
         .await
         .expect("Failed getting blob");
@@ -50,74 +53,21 @@ async fn main() {
 
     let hasher = NamespacedSha2Hasher::with_ignore_max_ns(true);
 
-    let mut leaf_hashes: VecDeque<_> = blob.data.chunks(512)
+    /*let mut leaf_hashes: VecDeque<_> = blob.data.chunks(512)
         .map(|chunk| hasher.hash_leaf_with_namespace(chunk, my_namespace.into_inner()))
-        .collect();
+        .collect();*/
+    let shares = blob.to_shares().expect("Failed to split blob to shares");
+    /*let leaf_hashes: VecDeque<_> = shares.iter()
+        .map(|share| hasher.hash_leaf_with_namespace(share.data.as_slice(), my_namespace.into_inner()))
+        .collect();*/
+    let leaf_hashes: Vec<_> = shares.iter().map(|share| share.as_ref()).collect();
 
-    for (i, p) in proofs.iter().map(|mut p| p).enumerate() {
-        //p.verify_range(root, raw_leaves, leaf_namespace)
-        let row_leaves: Vec<NamespacedHash>;
-
-        let start_index = match i {
-            0 => (blob_index%(square_size/2)) as usize,
-            _ => 0
-        } + i*(square_size/2);
-        let end_index: usize;
-        if i == proofs.len() - 1 {
-            end_index = (square_size/2) - (blob_index + blob_size)%(square_size/2) as usize + i*(square_size/2);
-        } else {
-            end_index = (square_size/2) as usize + i*(square_size/2);
-        }
-        println!("start index: {} end index: {}", start_index, end_index);
-
-        if let NamespaceProof::PresenceProof { proof, ignore_max_ns } = p {
-            println!("{}", proof.range.len());
-            println!("{}", end_index - start_index);
-            let hashes: Vec<_> = leaf_hashes.drain(0..(end_index-start_index)).collect();
-            let res = proof.verify_range_with_hasher(
-                &row_roots[first_row_index as usize+ i as usize],
-                &hashes,
-                hasher.clone(),
-            );
-            if res.is_err() {
-                //println!("Presence proof failed: {:?}", res);
-                println!("Invalid :( {:?}", res);
-            } else {
-                println!("Valid!");
-            }
-        } else {
-            println!("Absence proof");
-        }
+    let res = proofs[0].verify_range(&row_roots[first_row_index], &leaf_hashes[0..24], my_namespace.into_inner());
+    if res.is_err() {
+        println!("Proof verification failed: {:?}", res.err());
+    } else {
+        println!("Proof verification succeeded");
     }
-
-    /*for p in proofs {
-        //println!("Proof: {:?}", p.into_inner());
-        let inner = p.into_inner();
-        match inner {
-            NamespaceProof::PresenceProof { proof, ignore_max_ns } => {
-                //println!("Presence proof: {:?}", proof);
-                println!("Presence proof");
-                for s in proof.siblings {
-                    println!("{:x?}", s.hash());
-                }
-            }
-            NamespaceProof::AbsenceProof { proof, ignore_max_ns, leaf } => {
-                //println!("Absence proof: {:?}", proof);
-                println!("Absence proof");
-            }
-
-        }
-    }*/
-
-    // I'm gonna post a blob
-    /*let random_blob = create_valid_ethereum_blob();
-    let blob = Blob::new(my_namespace, random_blob)
-        .expect("Failed to create a blob");
-    println!("Blob commitment: {:?}", blob.commitment);
-    let height = client.blob_submit(&[blob], SubmitOptions::default())
-        .await
-        .expect("Failed submitting the blob");
-    println!("Height: {}", height);*/
 
 }
 
