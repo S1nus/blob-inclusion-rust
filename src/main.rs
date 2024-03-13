@@ -22,11 +22,11 @@ use tendermint_proto::Protobuf;
 
 #[tokio::main]
 async fn main() {
-    let token = std::env::var("CELESTIA_NODE_AUTH_TOKEN").expect("Token not provided");
+    /*let token = std::env::var("CELESTIA_NODE_AUTH_TOKEN").expect("Token not provided");
     let client = Client::new("ws://localhost:26658", Some(&token))
         .await
         .expect("Failed creating rpc client");
-    /*let network_head = client.header_network_head()
+    let network_head = client.header_network_head()
         .await
         .expect("could not get network head");*/
 
