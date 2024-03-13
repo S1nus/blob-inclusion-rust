@@ -398,11 +398,11 @@ dependencies = [
  "libp2p-identity",
  "multiaddr",
  "multihash",
- "nmt-rs",
+ "nmt-rs 0.1.0",
  "ruint",
  "serde",
  "serde_repr",
- "sha2 0.10.8",
+ "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "tendermint",
  "tendermint-proto",
  "thiserror",
@@ -1021,8 +1021,11 @@ version = "0.1.0"
 dependencies = [
  "celestia-rpc",
  "celestia-types",
- "nmt-rs",
+ "nmt-rs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand",
+ "serde",
+ "serde_json",
+ "tendermint-proto",
  "thiserror",
  "tokio",
 ]
@@ -1211,7 +1214,7 @@ dependencies = [
  "hkdf",
  "multihash",
  "quick-protobuf",
- "sha2 0.10.8",
+ "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror",
  "tracing",
 ]
@@ -1313,11 +1316,20 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 [[package]]
 name = "nmt-rs"
 version = "0.1.0"
+dependencies = [
+ "bytes",
+ "sha2 0.10.8 (git+https://github.com/sp1-patches/RustCrypto-hashes.git)",
+]
+
+[[package]]
+name = "nmt-rs"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e787133eafbd0f386dc4e26828a50f7595d6d7213ea0e8244c1ca6b9a9648c30"
 dependencies = [
  "bytes",
- "sha2 0.10.8",
+ "serde",
+ "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2075,6 +2087,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha2"
+version = "0.10.8"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes.git#3d692aa90b91513886d757d01f8fc2d51c0ec0d7"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest 0.10.7",
+]
+
+[[package]]
 name = "signal-hook-registry"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2231,7 +2253,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "serde_repr",
- "sha2 0.10.8",
+ "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "signature",
  "subtle",
  "subtle-encoding",

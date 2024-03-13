@@ -4,7 +4,7 @@ use nmt_rs::NamespaceMerkleHasher;
 use tokio::main;
 
 use celestia_rpc::{BlobClient, HeaderClient, Client};
-use celestia_types::{Blob, nmt::Namespace, Commitment};
+use celestia_types::{Blob, nmt::Namespace, Commitment, ExtendedHeader};
 use celestia_types::blob::SubmitOptions;
 use rand::prelude::*;
 use nmt_rs::nmt_proof::NamespaceProof;
@@ -13,26 +13,54 @@ use celestia_types::nmt::namespace_proof::NmtNamespaceProof;
 
 use std::collections::VecDeque;
 
+use std::fs::File;
+use std::io::prelude::*;
+use serde::ser::Serialize;
+
+use tendermint_proto::Protobuf;
+
+
 #[tokio::main]
 async fn main() {
     let token = std::env::var("CELESTIA_NODE_AUTH_TOKEN").expect("Token not provided");
     let client = Client::new("ws://localhost:26658", Some(&token))
         .await
         .expect("Failed creating rpc client");
-    let network_head = client.header_network_head()
+    /*let network_head = client.header_network_head()
         .await
-        .expect("could not get network head");
+        .expect("could not get network head");*/
 
     let my_namespace = Namespace::new_v0(&[1, 2, 3, 4, 5]).expect("Invalid namespace");
     let commitment = Commitment([194, 162, 95, 38, 0, 61, 45, 149, 199, 177, 161, 111, 45, 244, 27, 227, 44, 248, 94, 113, 251, 63, 91, 16, 124, 90, 109, 182, 25, 145, 233, 196]);
     let height = 1332908;
-    let dah = client.header_get_by_height(height)
+
+    // replacing the fetch with a file read
+    /*let dah = client.header_get_by_height(height)
         .await
         .expect("Failed getting header");
+    let header_bytes = dah.encode_vec().unwrap();
+    let mut header_file = File::create("header.dat").unwrap();
+    header_file.write_all(&header_bytes).unwrap();*/
+
+    let header_file = File::open("header.dat").unwrap();
+    let header_bytes = std::fs::read("header.dat").unwrap();
+    let dah = ExtendedHeader::decode_and_validate(&header_bytes).unwrap();
+
     let row_roots = dah.dah.row_roots;
-    let blob = client.blob_get(height, my_namespace, commitment)
+    
+
+    // replacing fetch with a file read
+    /*let blob = client.blob_get(height, my_namespace, commitment)
         .await
-        .expect("Failed getting blob");
+        .expect("Failed getting blob");*/
+    let blob_file = File::open("blob.dat").unwrap();
+    let blob_bytes = std::fs::read("blob.dat").unwrap();
+    let mut blob = Blob::new(my_namespace, blob_bytes).unwrap();
+    blob.index = 8;
+
+    let blob_bytes = &blob.data;
+    let mut file = File::create("blob.dat").unwrap();
+    file.write_all(&blob_bytes).unwrap();
     let blob_size: usize = (blob.data.len()/512).try_into().unwrap(); // num shares
     println!("blob size: {}", blob_size);
     let square_size: usize = row_roots.len().try_into().unwrap();
@@ -42,12 +70,28 @@ async fn main() {
     println!("First row index: {}", first_row_index);
     let last_row_index = first_row_index + (blob_size / square_size);
     println!("last row index: {}", last_row_index);
-    let proofs: Vec<NmtNamespaceProof> = client.blob_get_proof(height, my_namespace, commitment)
+
+    /*let proofs: Vec<NmtNamespaceProof> = client.blob_get_proof(height, my_namespace, commitment)
         .await
         .expect("Failed getting proof")
         .iter()
-        .map(|p| p.clone().into_inner())
-        .collect();
+        //.map(|p| p.clone().into_inner())
+        .map(|p| NamespaceProof::from(p.clone()))
+        .collect();*/
+
+    /*let proofs: Vec<celestia_types::nmt::NamespaceProof> = client.blob_get_proof(height, my_namespace, commitment)
+    .await
+    .expect("Failed getting proof")
+    .iter()
+    .map(|p| celestia_types::nmt::NamespaceProof::from(p.clone()))
+    .collect();
+
+    let proofs_bytes = serde_json::to_string(&proofs).unwrap();
+    let mut proofs_data_file = File::create("proofs.json").unwrap();
+    proofs_data_file.write_all(proofs_bytes.as_bytes()).unwrap();*/
+    let proofs_file = File::open("proofs.json").unwrap();
+    let proofs: Vec<celestia_types::nmt::NamespaceProof> = serde_json::from_reader(proofs_file).unwrap();
+
 
     let shares = blob.to_shares().expect("Failed to split blob to shares");
     let mut leaf_hashes: Vec<_> = shares.iter().map(|share| share.as_ref()).collect();
