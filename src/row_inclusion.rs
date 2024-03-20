@@ -4,6 +4,8 @@ use std::cmp::min;
 use std::rc::Rc;
 use std::cell::RefCell;
 
+// https://github.com/celestiaorg/go-square/blob/main/merkle/proof.go#L232
+
 struct ProofNode {
     hash: [u8; 32],
     parent: Option<Rc<RefCell<ProofNode>>>,
