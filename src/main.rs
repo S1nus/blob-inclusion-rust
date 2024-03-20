@@ -8,8 +8,8 @@ use std::fs::File;
 use std::io::prelude::*;
 use celestia_types::hash::Hash;
 
-mod row_inclusion2;
-use row_inclusion2::*;
+mod row_inclusion;
+use row_inclusion::*;
 
 #[tokio::main]
 async fn main() {
