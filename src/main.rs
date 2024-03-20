@@ -1,24 +1,14 @@
-use nmt_rs::simple_merkle::proof;
-use nmt_rs::simple_merkle::tree::MerkleHash;
-use nmt_rs::NamespaceMerkleHasher;
-use tokio::main;
-
-use celestia_rpc::{BlobClient, HeaderClient, Client};
+use celestia_types::nmt::NamespacedHashExt;
 use celestia_types::{Blob, nmt::Namespace, Commitment, ExtendedHeader};
-use celestia_types::blob::SubmitOptions;
 use rand::prelude::*;
-use nmt_rs::nmt_proof::NamespaceProof;
-use celestia_types::nmt::{NamespacedHash, NamespacedHashExt, NamespacedSha2Hasher, NS_SIZE};
-use celestia_types::nmt::namespace_proof::NmtNamespaceProof;
 
-use std::collections::VecDeque;
 
 use std::fs::File;
 use std::io::prelude::*;
-use serde::ser::Serialize;
+use celestia_types::hash::Hash;
 
-use tendermint_proto::Protobuf;
-
+mod row_inclusion;
+use row_inclusion::*;
 
 #[tokio::main]
 async fn main() {
@@ -42,18 +32,24 @@ async fn main() {
     let mut header_file = File::create("header.dat").unwrap();
     header_file.write_all(&header_bytes).unwrap();*/
 
-    let header_file = File::open("header.dat").unwrap();
     let header_bytes = std::fs::read("header.dat").unwrap();
     let dah = ExtendedHeader::decode_and_validate(&header_bytes).unwrap();
 
-    let row_roots = dah.dah.row_roots;
-    
+    let row_roots = &dah.dah.row_roots;
+
+    let leaves: Vec<_> = dah.dah.row_roots.iter()
+        .chain(dah.dah.column_roots.iter())
+        .map(|root| Sha256::hash(&root.to_array()))
+        .collect();
+    let mut tree = MerkleTree::<Sha256>::from_leaves(&leaves);
+    let root = Hash::Sha256(tree.root().unwrap());
+    println!("root from header {:?}", dah.dah.hash());
+    println!("root from tree {:?}", root);
 
     // replacing fetch with a file read
     /*let blob = client.blob_get(height, my_namespace, commitment)
         .await
         .expect("Failed getting blob");*/
-    let blob_file = File::open("blob.dat").unwrap();
     let blob_bytes = std::fs::read("blob.dat").unwrap();
     let mut blob = Blob::new(my_namespace, blob_bytes).unwrap();
     blob.index = 8;
@@ -70,6 +66,9 @@ async fn main() {
     println!("First row index: {}", first_row_index);
     let last_row_index = first_row_index + (blob_size / square_size);
     println!("last row index: {}", last_row_index);
+
+    let p0_bytes = bincode::serialize(&row_roots[first_row_index]).unwrap();
+    let p0_from_bytes: celestia_types::nmt::NamespaceProof = bincode::deserialize(&p0_bytes).unwrap();
 
     /*let proofs: Vec<NmtNamespaceProof> = client.blob_get_proof(height, my_namespace, commitment)
         .await
