@@ -2,13 +2,14 @@ use celestia_types::nmt::NamespacedHashExt;
 use celestia_types::{Blob, nmt::Namespace, Commitment, ExtendedHeader};
 use rand::prelude::*;
 
+use sha2::{Sha256, Digest};
 
 use std::fs::File;
 use std::io::prelude::*;
 use celestia_types::hash::Hash;
 
-mod row_inclusion;
-use row_inclusion::*;
+mod row_inclusion2;
+use row_inclusion2::*;
 
 #[tokio::main]
 async fn main() {
@@ -41,10 +42,10 @@ async fn main() {
         .chain(dah.dah.column_roots.iter())
         .map(|root| Sha256::hash(&root.to_array()))
         .collect();
-    let mut tree = MerkleTree::<Sha256>::from_leaves(&leaves);
+    /*let mut tree = MerkleTree::<Sha256>::from_leaves(&leaves);
     let root = Hash::Sha256(tree.root().unwrap());
     println!("root from header {:?}", dah.dah.hash());
-    println!("root from tree {:?}", root);
+    println!("root from tree {:?}", root);*/
 
     // replacing fetch with a file read
     /*let blob = client.blob_get(height, my_namespace, commitment)

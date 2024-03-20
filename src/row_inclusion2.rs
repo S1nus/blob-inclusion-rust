@@ -1,17 +1,15 @@
 use sha2::{Sha256, Digest};
 use std::borrow::{Borrow, BorrowMut};
 use std::cmp::min;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-// https://github.com/celestiaorg/go-square/blob/main/merkle/proof.go#L232
-
-#[derive(Clone)]
 struct ProofNode {
-    hash: Rc<RefCell<[u8; 32]>>,
-    parent: Option<Rc<RefCell<ProofNode>>>,
-    left: Option<Rc<RefCell<ProofNode>>>,
-    right: Option<Rc<RefCell<ProofNode>>>,
+    hash: RefCell<[u8; 32]>,
+    parent: Option<RefCell<Weak<ProofNode>>>,
+    //children: RefCell<Vec<Rc<ProofNode>>>,
+    left: Option<RefCell<Rc<ProofNode>>>,
+    right: Option<RefCell<Rc<ProofNode>>>,
 }
 
 pub const LEAF_PREFIX: &[u8] = &[0];
@@ -42,26 +40,26 @@ fn get_split_point(length: u32) -> u32 {
     length / 2
 }
 
-pub fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<Rc<RefCell<ProofNode>>>, Rc<RefCell<ProofNode>>) {
+pub fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<RefCell<Rc<ProofNode>>>, RefCell<Rc<ProofNode>>) {
     match items.len() {
         0 => return (
             vec![], 
-            Rc::new(RefCell::new(ProofNode{
-                hash: Rc::new(RefCell::new(empty_hash())),
+            RefCell::new(Rc::new(ProofNode{
+                hash: RefCell::new(empty_hash()),
                 parent: None,
                 left: None,
                 right: None,
             }))
         ),
         1 => return (
-            vec![Rc::new(RefCell::new(ProofNode{
-                hash: Rc::new(RefCell::new(leaf_hash(items[0]))),
+            vec![RefCell::new(Rc::new(ProofNode{
+                hash: RefCell::new(leaf_hash(items[0])),
                 parent: None,
                 left: None,
                 right: None,
             }))],
-            Rc::new(RefCell::new(ProofNode{
-                hash: Rc::new(RefCell::new(leaf_hash(items[0]))),
+            RefCell::new(Rc::new(ProofNode{
+                hash: RefCell::new(leaf_hash(items[0])),
                 parent: None,
                 left: None,
                 right: None,
@@ -71,20 +69,20 @@ pub fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<Rc<RefCell<ProofNode>>>,
             let split_point = get_split_point(items.len() as u32);
             let (lefts, left_root) = trails_from_byte_slices(&items[..split_point as usize]);
             let (rights, right_root) = trails_from_byte_slices(&items[split_point as usize..]);
-            /*let root_hash = inner_hash(
+            let root_hash = inner_hash(
                 &left_root.borrow().hash.borrow()[..],
                 &right_root.borrow().hash.borrow()[..],
             );
-            let root = Rc::new(RefCell::new(ProofNode{
-                hash: root_hash,
+            let root = RefCell::new(Rc::new(ProofNode{
+                hash: root_hash.into(),
                 parent: None,
-                left: None,
-                right: None,
+                left: Some(left_root.borrow().clone().into()),
+                right: Some(right_root.borrow().clone().into()),
             }));
             //left_root.clone().get_mut().parent = Some(root.clone());
-            return (vec![lefts, rights].concat(), root);*/
-            return (vec![], Rc::new(RefCell::new(ProofNode{
-                hash: Rc::new(RefCell::new([0; 32])),
+            /*return (vec![lefts, rights].concat(), root);*/
+            return (vec![lefts, rights].concat(), RefCell::new(Rc::new(ProofNode{
+                hash: RefCell::new(empty_hash()),
                 parent: None,
                 left: None,
                 right: None,
