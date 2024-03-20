@@ -40,7 +40,20 @@ fn get_split_point(length: u32) -> u32 {
     length / 2
 }
 
-fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<ProofNode>, ProofNode) {
+pub fn hash_from_byte_slices(items: &[&[u8]]) -> [u8; 32] {
+    match items.len() {
+        0 => empty_hash(),
+        1 => leaf_hash(items[0]),
+        _ => {
+            let k: u32 = get_split_point(items.len() as u32);
+            let left_hash = hash_from_byte_slices(&items[..k as usize]);
+            let right_hash = hash_from_byte_slices(&items[k as usize..]);
+            inner_hash(&left_hash, &right_hash)
+        }
+    }
+}
+
+pub fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<ProofNode>, ProofNode) {
     match items.len() {
         0 => (vec![], ProofNode {
             hash: empty_hash(),
@@ -64,7 +77,7 @@ fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<ProofNode>, ProofNode) {
             let (rights, mut right_root) = trails_from_byte_slices(&items[k as usize..]);
 
             // compute the inner_hash of the left_root and right_roots
-            let root_hash = inner_hash(&left_root.borrow().hash, &right_root.borrow().hash);
+            let root_hash = inner_hash(&left_root.hash, &right_root.hash);
             let root_node = Rc::new(RefCell::new(ProofNode {
                 hash: root_hash,
                 parent: None,
