@@ -47,7 +47,8 @@ async fn main() {
     println!("root from tree {:?}", Hash::Sha256(computed_root_hash));
     let (trails, tree_root) = trails_from_byte_slices(&leaves.iter().map(|leaf| leaf.as_ref()).collect::<Vec<_>>()[..]);
     for t in trails.iter() {
-        t.flatten_aunts();
+        let aunts = t.as_ref().borrow().flatten_aunts();
+        println!("len aunts: {}", aunts.len());
     }
 
     // replacing fetch with a file read

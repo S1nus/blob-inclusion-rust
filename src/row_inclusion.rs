@@ -53,22 +53,22 @@ pub fn hash_from_byte_slices(items: &[&[u8]]) -> [u8; 32] {
     }
 }
 
-pub fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<ProofNode>, ProofNode) {
+pub fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<Rc<RefCell<ProofNode>>>, Rc<RefCell<ProofNode>>) {
     match items.len() {
-        0 => (vec![], ProofNode {
+        0 => (vec![], Rc::new(RefCell::new(ProofNode {
             hash: empty_hash(),
             parent: None,
             left: None,
             right: None,
-        }),
+        }))),
         1 => {
             let leaf_hash = leaf_hash(items[0]);
-            let trail = ProofNode {
+            let trail = Rc::new(RefCell::new(ProofNode {
                 hash: leaf_hash,
                 parent: None,
                 left: None,
                 right: None,
-            };
+            }));
             (vec![trail.clone()], trail)
         }
         _ => {
@@ -77,7 +77,7 @@ pub fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<ProofNode>, ProofNode) {
             let (rights, mut right_root) = trails_from_byte_slices(&items[k as usize..]);
 
             // compute the inner_hash of the left_root and right_roots
-            let root_hash = inner_hash(&left_root.hash, &right_root.hash);
+            let root_hash = inner_hash(&left_root.as_ref().borrow().hash, &right_root.as_ref().borrow().hash);
             let root_node = Rc::new(RefCell::new(ProofNode {
                 hash: root_hash,
                 parent: None,
@@ -86,15 +86,14 @@ pub fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<ProofNode>, ProofNode) {
             }));
 
             // update the parent of the left and right roots
-            left_root.parent = Some(root_node.clone());
-            right_root.parent = Some(root_node.clone());
+            let mut l = left_root.as_ref().borrow_mut();
+            l.parent = Some(root_node.clone());
+            l.right = Some(right_root.clone());
+            let mut r = right_root.as_ref().borrow_mut();
+            r.parent = Some(root_node.clone());
+            r.left = Some(left_root.clone());
 
-            return (vec![lefts, rights].concat(), ProofNode {
-                hash: empty_hash(),
-                parent: None,
-                left: None,
-                right: None,
-            })
+            return (vec![lefts, rights].concat(), root_node)
         }
     }
 }
@@ -104,7 +103,6 @@ impl ProofNode {
         let mut inner_hashes: Vec<[u8; 32]> = vec![];
         let mut node: Option<Rc<RefCell<ProofNode>>> = Some(Rc::new(RefCell::new(self.clone())));
         while let Some(n) = node.take() {
-            println!("parent? {}", n.as_ref().borrow().left.is_some());
             // if node has a left, add its hash to inner_hashes
             if let Some(left) = &n.as_ref().borrow().left {
                 let left_hash = left.as_ref().borrow().hash.clone();
