@@ -42,14 +42,10 @@ async fn main() {
         .chain(dah.dah.column_roots.iter())
         .map(|root| root.to_array())
         .collect();
-    let computed_root_hash = hash_from_byte_slices(&leaves.iter().map(|leaf| leaf.as_ref()).collect::<Vec<_>>()[..]);
+    let (computed_root_hash, proofs) = proofs_from_byte_slices(&leaves.iter().map(|leaf| leaf.as_ref()).collect::<Vec<_>>()[..]);
     println!("root from header {:?}", dah.dah.hash());
     println!("root from tree {:?}", Hash::Sha256(computed_root_hash));
-    let (trails, tree_root) = trails_from_byte_slices(&leaves.iter().map(|leaf| leaf.as_ref()).collect::<Vec<_>>()[..]);
-    for t in trails.iter() {
-        let aunts = t.as_ref().borrow().flatten_aunts();
-        println!("len aunts: {}", aunts.len());
-    }
+    println!("merkle proof valid: {}", proofs[0].verify(computed_root_hash));
 
     // replacing fetch with a file read
     /*let blob = client.blob_get(height, my_namespace, commitment)

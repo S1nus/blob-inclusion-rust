@@ -3,6 +3,19 @@ use std::borrow::{Borrow, BorrowMut};
 use std::cmp::min;
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum TreeError {
+    #[error("Invalid index")]
+    IndexError,
+    #[error("Inner hash error")]
+    InnerHashZeroError,
+    #[error("total is 1, inner_hashes must be zero")]
+    TotalInnerHashMismatch,
+    #[error("Expected inner hashes")]
+    ExpectedInnerHash,
+}
 
 #[derive(Clone, Debug)]
 pub struct ProofNode {
@@ -10,6 +23,14 @@ pub struct ProofNode {
     pub parent: Option<Rc<RefCell<ProofNode>>>,
     pub left: Option<Rc<RefCell<ProofNode>>>,
     pub right: Option<Rc<RefCell<ProofNode>>>,
+}
+
+#[derive(Debug)]
+pub struct Proof {
+    pub total: i64,
+    pub index: i64,
+    pub leaf_hash: [u8; 32],
+    pub aunts: Vec<[u8; 32]>,
 }
 
 pub const LEAF_PREFIX: &[u8] = &[0];
@@ -95,6 +116,57 @@ pub fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<Rc<RefCell<ProofNode>>>,
 
             return (vec![lefts, rights].concat(), root_node)
         }
+    }
+}
+
+pub fn proofs_from_byte_slices(items: &[&[u8]]) -> ([u8; 32], Vec<Proof>) {
+    let (trails, root) = trails_from_byte_slices(items);
+    let root_hash = root.as_ref().borrow().hash.clone();
+    let proofs = trails.iter().enumerate().map(|(i, trail)| {
+        let aunts = trail.as_ref().borrow().flatten_aunts();
+        let leaf_hash = trail.as_ref().borrow().hash.clone();
+        let total = items.len() as i64;
+        let index = i;
+        Proof {
+            total,
+            index: i as i64,
+            leaf_hash,
+            aunts,
+        }
+    }).collect();
+    (root_hash, proofs)
+}
+
+pub fn compute_hash_from_aunts(index: i64, total: i64, leaf_hash: [u8; 32], inner_hashes: Vec<[u8; 32]>) -> Result<[u8; 32], TreeError> {
+    if index > total || index < 0 || total <= 0 {
+        return Err(TreeError::IndexError)
+    }
+    if total == 0 {
+        return Err(TreeError::InnerHashZeroError)
+    }
+    if total == 1 {
+        if inner_hashes.len() != 0 {
+            return Err(TreeError::TotalInnerHashMismatch)
+        }
+        return Ok(leaf_hash)
+    }
+    if inner_hashes.len()  == 0 {
+        return Err(TreeError::ExpectedInnerHash)
+    }
+    let num_left = get_split_point(total as u32) as i64;
+    if index < num_left {
+        let left_hash = compute_hash_from_aunts(index, num_left, leaf_hash, inner_hashes[..inner_hashes.len() - 1].to_vec())?;
+        return Ok(inner_hash(&left_hash, &inner_hashes[inner_hashes.len() - 1]))
+    }
+    let right_hash = compute_hash_from_aunts(index - num_left, total - num_left, leaf_hash, inner_hashes[..inner_hashes.len() - 1].to_vec())?;
+    return Ok(inner_hash(&inner_hashes[inner_hashes.len() - 1], &right_hash))
+}
+
+impl Proof {
+    pub fn verify(&self, root_hash: [u8; 32]) -> bool {
+        println!("len aunts: {:?}", self.aunts.len());
+        let computed_hash = compute_hash_from_aunts(self.index, self.total, self.leaf_hash, self.aunts.clone()).unwrap();
+        computed_hash == root_hash
     }
 }
 
