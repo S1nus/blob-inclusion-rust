@@ -40,7 +40,7 @@ async fn main() {
 
     let leaves: Vec<_> = dah.dah.row_roots.iter()
         .chain(dah.dah.column_roots.iter())
-        .map(|root| root.hash())
+        .map(|root| root.to_array())
         .collect();
     let computed_root_hash = hash_from_byte_slices(&leaves.iter().map(|leaf| leaf.as_ref()).collect::<Vec<_>>()[..]);
     println!("root from header {:?}", dah.dah.hash());

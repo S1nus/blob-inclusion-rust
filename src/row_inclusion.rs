@@ -37,7 +37,7 @@ pub fn inner_hash(left: &[u8], right: &[u8]) -> [u8; 32] {
 // rewrite this to arithetic-based computation
 // make it easier for zk prover
 fn get_split_point(length: u32) -> u32 {
-    length / 2
+    length.next_power_of_two() / 2
 }
 
 pub fn hash_from_byte_slices(items: &[&[u8]]) -> [u8; 32] {
