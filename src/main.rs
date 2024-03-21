@@ -45,6 +45,10 @@ async fn main() {
     let computed_root_hash = hash_from_byte_slices(&leaves.iter().map(|leaf| leaf.as_ref()).collect::<Vec<_>>()[..]);
     println!("root from header {:?}", dah.dah.hash());
     println!("root from tree {:?}", Hash::Sha256(computed_root_hash));
+    let (trails, tree_root) = trails_from_byte_slices(&leaves.iter().map(|leaf| leaf.as_ref()).collect::<Vec<_>>()[..]);
+    for t in trails.iter() {
+        t.flatten_aunts();
+    }
 
     // replacing fetch with a file read
     /*let blob = client.blob_get(height, my_namespace, commitment)

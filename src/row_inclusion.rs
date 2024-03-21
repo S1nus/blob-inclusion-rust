@@ -4,12 +4,12 @@ use std::cmp::min;
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-#[derive(Clone)]
-struct ProofNode {
-    hash: [u8; 32],
-    parent: Option<Rc<RefCell<ProofNode>>>,
-    left: Option<Rc<RefCell<ProofNode>>>,
-    right: Option<Rc<RefCell<ProofNode>>>,
+#[derive(Clone, Debug)]
+pub struct ProofNode {
+    pub hash: [u8; 32],
+    pub parent: Option<Rc<RefCell<ProofNode>>>,
+    pub left: Option<Rc<RefCell<ProofNode>>>,
+    pub right: Option<Rc<RefCell<ProofNode>>>,
 }
 
 pub const LEAF_PREFIX: &[u8] = &[0];
@@ -96,5 +96,26 @@ pub fn trails_from_byte_slices(items: &[&[u8]]) -> (Vec<ProofNode>, ProofNode) {
                 right: None,
             })
         }
+    }
+}
+
+impl ProofNode {
+    pub fn flatten_aunts(&self) -> Vec<[u8; 32]> {
+        let mut inner_hashes: Vec<[u8; 32]> = vec![];
+        let mut node: Option<Rc<RefCell<ProofNode>>> = Some(Rc::new(RefCell::new(self.clone())));
+        while let Some(n) = node.take() {
+            println!("parent? {}", n.as_ref().borrow().left.is_some());
+            // if node has a left, add its hash to inner_hashes
+            if let Some(left) = &n.as_ref().borrow().left {
+                let left_hash = left.as_ref().borrow().hash.clone();
+                inner_hashes.push(left_hash);
+            }
+            if let Some(right) = &n.as_ref().borrow().right {
+                let right_hash = right.as_ref().borrow().hash.clone();
+                inner_hashes.push(right_hash);
+            }
+            node = n.as_ref().borrow().parent.clone();
+        }
+        inner_hashes
     }
 }
