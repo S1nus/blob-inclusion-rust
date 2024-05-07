@@ -1,128 +1,100 @@
 use celestia_types::nmt::NamespacedHashExt;
+//use celestia_types::nmt::NamespacedHashExt;
 use celestia_types::{Blob, nmt::Namespace, Commitment, ExtendedHeader};
-use rand::prelude::*;
+//use rand::prelude::*;
 
-use sha2::{Sha256, Digest};
+//use sha2::{Sha256, Digest};
 
 use std::fs::File;
-use std::io::prelude::*;
+//use std::io::prelude::*;
 use celestia_types::hash::Hash;
 
 mod row_inclusion;
-use row_inclusion::*;
+//use row_inclusion::*;
+
+use nmt_rs::{NamespacedHash, TmSha2Hasher};
+use nmt_rs::simple_merkle::tree::MerkleTree;
+use nmt_rs::simple_merkle::db::MemDb;
+//use nmt_rs::simple_merkle::tree::MerkleHash;
 
 #[tokio::main]
 async fn main() {
-    /*let token = std::env::var("CELESTIA_NODE_AUTH_TOKEN").expect("Token not provided");
-    let client = Client::new("ws://localhost:26658", Some(&token))
-        .await
-        .expect("Failed creating rpc client");
-    let network_head = client.header_network_head()
-        .await
-        .expect("could not get network head");*/
 
-    let my_namespace = Namespace::new_v0(&[1, 2, 3, 4, 5]).expect("Invalid namespace");
-    let commitment = Commitment([194, 162, 95, 38, 0, 61, 45, 149, 199, 177, 161, 111, 45, 244, 27, 227, 44, 248, 94, 113, 251, 63, 91, 16, 124, 90, 109, 182, 25, 145, 233, 196]);
-    let height = 1332908;
+    // Hardcoded values for the namespace and blob
+    let namespace = Namespace::new_v0(&[1, 2, 3, 4, 5]).expect("Invalid namespace");
+    let _commitment = Commitment([194, 162, 95, 38, 0, 61, 45, 149, 199, 177, 161, 111, 45, 244, 27, 227, 44, 248, 94, 113, 251, 63, 91, 16, 124, 90, 109, 182, 25, 145, 233, 196]);
+    let _height = 1332908;
 
-    // replacing the fetch with a file read
-    /*let dah = client.header_get_by_height(height)
-        .await
-        .expect("Failed getting header");
-    let header_bytes = dah.encode_vec().unwrap();
-    let mut header_file = File::create("header.dat").unwrap();
-    header_file.write_all(&header_bytes).unwrap();*/
-
+    // load Mocha-4 block #1332908 header from a file
     let header_bytes = std::fs::read("header.dat").unwrap();
     let dah = ExtendedHeader::decode_and_validate(&header_bytes).unwrap();
-
-    let row_roots = &dah.dah.row_roots;
-
-    let leaves: Vec<_> = dah.dah.row_roots.iter()
-        .chain(dah.dah.column_roots.iter())
+    let eds_row_roots = &dah.dah.row_roots();
+    let eds_column_roots = &dah.dah.column_roots();
+    let data_tree_leaves: Vec<_> = eds_row_roots.iter()
+        .chain(eds_column_roots.iter())
         .map(|root| root.to_array())
         .collect();
-    let (computed_root_hash, proofs) = proofs_from_byte_slices(&leaves.iter().map(|leaf| leaf.as_ref()).collect::<Vec<_>>()[..]);
-    println!("root from header {:?}", dah.dah.hash());
-    println!("root from tree {:?}", Hash::Sha256(computed_root_hash));
-    println!("merkle proof valid: {}", proofs[0].verify(computed_root_hash));
 
-    // replacing fetch with a file read
-    /*let blob = client.blob_get(height, my_namespace, commitment)
-        .await
-        .expect("Failed getting blob");*/
+    // try to get in and out of raw type
+    let root_as_array = eds_row_roots[0].to_array();
+    let root_recovered: NamespacedHash<29> = NamespacedHash::from_raw(&root_as_array).unwrap();
+    assert_eq!(root_recovered, eds_row_roots[0]);
+
+    // "Data root" is the merkle root of the EDS row and column roots
+    let hasher = TmSha2Hasher {}; // Tendermint Sha2 hasher
+    let mut tree: MerkleTree<MemDb<[u8; 32]>, TmSha2Hasher> = MerkleTree::with_hasher(hasher);
+    for leaf in data_tree_leaves {
+        tree.push_raw_leaf(&leaf);
+    }
+    // Ensure that the data root is the merkle root of the EDS row and column roots
+    assert_eq!(dah.dah.hash(), Hash::Sha256(tree.root()));
+
+    // extended data square (EDS) size
+    let eds_size = eds_row_roots.len();
+    // original data square (ODS) size
+    let ods_size = eds_size/2;
+
     let blob_bytes = std::fs::read("blob.dat").unwrap();
-    let mut blob = Blob::new(my_namespace, blob_bytes).unwrap();
-    blob.index = 8;
-
-    let blob_bytes = &blob.data;
-    let mut file = File::create("blob.dat").unwrap();
-    file.write_all(&blob_bytes).unwrap();
-    let blob_size: usize = (blob.data.len()/512).try_into().unwrap(); // num shares
-    println!("blob size: {}", blob_size);
-    let square_size: usize = row_roots.len().try_into().unwrap();
-    println!("Square size: {}", square_size);
-    let blob_index: usize = blob.index.try_into().unwrap();
-    let first_row_index =  blob_index / square_size;
-    println!("First row index: {}", first_row_index);
-    let last_row_index = first_row_index + (blob_size / square_size);
-    println!("last row index: {}", last_row_index);
-
-    let p0_bytes = bincode::serialize(&row_roots[first_row_index]).unwrap();
-    let p0_from_bytes: celestia_types::nmt::NamespaceProof = bincode::deserialize(&p0_bytes).unwrap();
-
-    /*let proofs: Vec<NmtNamespaceProof> = client.blob_get_proof(height, my_namespace, commitment)
-        .await
-        .expect("Failed getting proof")
+    let mut blob = Blob::new(namespace, blob_bytes).unwrap();
+    blob.index = Some(8);
+    let blob_shares: Vec<[u8; 512]> = blob
+        .to_shares()
+        .expect("Failed to split blob to shares")
         .iter()
-        //.map(|p| p.clone().into_inner())
-        .map(|p| NamespaceProof::from(p.clone()))
-        .collect();*/
+        .map(|share| share.data)
+        .collect();
 
-    /*let proofs: Vec<celestia_types::nmt::NamespaceProof> = client.blob_get_proof(height, my_namespace, commitment)
-    .await
-    .expect("Failed getting proof")
-    .iter()
-    .map(|p| celestia_types::nmt::NamespaceProof::from(p.clone()))
-    .collect();
+    let blob_index: usize = blob.index.unwrap().try_into().unwrap();
+    let blob_size: usize = blob.data.len()/512;
+    let first_row_index: usize = blob_index / ods_size;
+    let last_row_index: usize = first_row_index + (blob_size / ods_size);
+    println!("first row index: {} last row index: {}", first_row_index, last_row_index);
 
-    let proofs_bytes = serde_json::to_string(&proofs).unwrap();
-    let mut proofs_data_file = File::create("proofs.json").unwrap();
-    proofs_data_file.write_all(proofs_bytes.as_bytes()).unwrap();*/
+    // Since the row roots spanned by the blob are contiguous
+    // their inclusion in the data root can be proved efficiently with a merkle range proof
+    let rp = tree.build_range_proof(first_row_index..last_row_index+1);
+    let blob_row_root_hashes: Vec<[u8; 32]> = tree.leaves()[first_row_index..last_row_index+1]
+        .iter()
+        .map(|leaf| leaf.hash().clone())
+        .collect();
+    match rp.verify_range(&tree.root(), &blob_row_root_hashes) {
+        Ok(_) => println!("Range proof verified"),
+        Err(_) => println!("Range proof verification failed"),
+    }
+
+    // load the blob proofs from file
+    // One NMT range proof for each row of the square spanned by the blob
+    // proves the blob's shares go into the respective row root
     let proofs_file = File::open("proofs.json").unwrap();
     let proofs: Vec<celestia_types::nmt::NamespaceProof> = serde_json::from_reader(proofs_file).unwrap();
 
-
-    let shares = blob.to_shares().expect("Failed to split blob to shares");
-    let mut leaf_hashes: Vec<_> = shares.iter().map(|share| share.as_ref()).collect();
-
-    // verify first row proof
-    let first_row_leaves: Vec<&[u8]> = leaf_hashes.drain(..((square_size/2) - (blob_index%(square_size/2)))).collect();
-    let res = proofs[0].verify_range(&row_roots[first_row_index], &first_row_leaves, my_namespace.into_inner());
-    if res.is_err() {
-        panic!("Failed to verify first row");
+    let mut start = 0;
+    for i in 0..(last_row_index - first_row_index) {
+        let proof = &proofs[i];
+        let root = &eds_row_roots[first_row_index + i];
+        let end = start + (proof.end_idx() as usize - proof.start_idx() as usize);
+        let result = proof.verify_range(&root, &blob_shares[start..end], namespace.into());
+        println!("row {} result: {}", i, result.is_ok());
+        start = end;
     }
-
-    // verify middle row proofs
-    for i in 1..(proofs.len()-1) {
-        let next_row_leaves: Vec<&[u8]> = leaf_hashes.drain(..(square_size/2)).collect();
-        let res = proofs[i].verify_range(&row_roots[first_row_index+i], &next_row_leaves, my_namespace.into_inner());
-        if res.is_err() {
-            panic!("Failed to verify row {}",i);
-        }
-    }
-
-    // verify last row proof
-    let last_row_leaves = leaf_hashes;
-    let res = proofs[proofs.len()-1].verify_range(&row_roots[proofs.len()-1], &last_row_leaves, my_namespace.into_inner());
-    if res.is_err() {
-        panic!("Failed to verify last row");
-    }
-}
-
-fn create_valid_ethereum_blob() -> Vec<u8> {
-    let mut rng = rand::thread_rng();
-    let mut buf = [0; 131072];
-    rng.fill(&mut buf[..]);
-    buf.to_vec()
 }

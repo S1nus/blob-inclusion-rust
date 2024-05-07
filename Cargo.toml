@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-celestia-rpc = {path = "../lumina/rpc"}
-celestia-types = {path = "../lumina/types"}
+celestia-rpc = {path = "../upstream-lumina/rpc"}
+celestia-types = {path = "../upstream-lumina/types"}
 thiserror = "1.0.50"
 rand = "0.8.5"
 nmt-rs = {path = "../nmt-rs"}
