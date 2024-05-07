@@ -9,9 +9,6 @@ use std::fs::File;
 //use std::io::prelude::*;
 use celestia_types::hash::Hash;
 
-mod row_inclusion;
-//use row_inclusion::*;
-
 use nmt_rs::{NamespacedHash, TmSha2Hasher};
 use nmt_rs::simple_merkle::tree::MerkleTree;
 use nmt_rs::simple_merkle::db::MemDb;
